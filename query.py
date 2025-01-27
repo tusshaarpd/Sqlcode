@@ -1,32 +1,42 @@
 import streamlit as st
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
-st.title("Advanced SQL Code Generator")
-st.write("Provide a description in simple English, and this tool will generate the corresponding SQL query.")
-
-# Load model and tokenizer
 @st.cache_resource
 def load_model():
-    model_name = "mrm8488/t5-small-finetuned-wikiSQL"
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
-    return tokenizer, model
+    model_name = "t5-small-finetuned-wikisql-sql-nl-nl-sql"
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+        return tokenizer, model
+    except Exception as e:
+        st.error(f"Error loading model: {e}")
+        st.stop()
 
+def generate_sql_query(input_text, tokenizer, model):
+    try:
+        inputs = tokenizer.encode(input_text, return_tensors="pt", max_length=512, truncation=True)
+        outputs = model.generate(inputs, max_length=150, num_beams=4, early_stopping=True)
+        query = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        return query
+    except Exception as e:
+        return f"Error generating SQL query: {e}"
+
+# Streamlit app layout
+st.title("Advanced SQL Code Generator")
+st.write("Enter your requirement in plain English, and the app will generate the SQL query for you.")
+
+# Load model
 tokenizer, model = load_model()
 
-def generate_sql_query(input_text):
-    input_ids = tokenizer.encode(input_text, return_tensors="pt", max_length=512, truncation=True)
-    outputs = model.generate(input_ids, max_length=150, num_beams=4, early_stopping=True)
-    return tokenizer.decode(outputs[0], skip_special_tokens=True)
-
 # User input
-user_input = st.text_area("Describe the SQL query you need:", placeholder="e.g., Show me the total sales by region for the last year.")
+input_text = st.text_area("Enter your query requirement (e.g., 'Get all users who signed up in 2022'):")
 
 if st.button("Generate SQL Query"):
-    if user_input.strip():
+    if input_text.strip():
         with st.spinner("Generating SQL query..."):
-            sql_query = generate_sql_query(user_input)
+            query = generate_sql_query(input_text, tokenizer, model)
         st.subheader("Generated SQL Query:")
-        st.code(sql_query, language="sql")
+        st.code(query, language="sql")
     else:
-        st.warning("Please provide a description to generate the query.")
+        st.warning("Please enter a valid requirement.")
+
